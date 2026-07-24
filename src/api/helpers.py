@@ -136,12 +136,6 @@ MEDIA_EPISODES_ADDITIONAL_SORTS = [
     "progress",
 ]
 
-MEDIA_MANUAL_SORTS = [
-    "added",
-    "updated",
-    "itemid",
-]
-
 LIST_SORTS = [
     "items",
     "name",
@@ -317,23 +311,17 @@ def get_item_lists(
 
 def get_sorts(media_type, *, sort_type="all"):
     """Return the list of valid sorts for complete media types."""
-    if sort_type == "all":
-        sort_list = MEDIA_EXISTING_SORTS.copy()
-        if media_type == MediaTypes.SEASON.value:
-            sort_list += MEDIA_SEASONS_ADDITIONAL_SORTS
-        if media_type == MediaTypes.EPISODE.value:
-            sort_list += MEDIA_EPISODES_ADDITIONAL_SORTS
-        sort_list += MEDIA_MANUAL_SORTS
-        return sort_list
     if sort_type == "manual":
-        return MEDIA_MANUAL_SORTS
+        return list(_AGGREGATED_SORT_KEYS)
+    sort_list = MEDIA_EXISTING_SORTS.copy()
+    if media_type == MediaTypes.SEASON.value:
+        sort_list += MEDIA_SEASONS_ADDITIONAL_SORTS
+    if media_type == MediaTypes.EPISODE.value:
+        sort_list += MEDIA_EPISODES_ADDITIONAL_SORTS
     if sort_type == "existing":
-        sort_list = MEDIA_EXISTING_SORTS.copy()
-        if media_type == MediaTypes.SEASON.value:
-            sort_list += MEDIA_SEASONS_ADDITIONAL_SORTS
-        if media_type == MediaTypes.EPISODE.value:
-            sort_list += MEDIA_EPISODES_ADDITIONAL_SORTS
         return sort_list
+    if sort_type == "all":
+        return sort_list + list(_AGGREGATED_SORT_KEYS)
     return []
 
 
@@ -606,7 +594,7 @@ def validate_body(body, media_type):
 def parse_sort_filter(sort_filter):
     """Parse a sort_filter string into (field, direction) tuple."""
     if sort_filter and sort_filter != "":
-        parts = sort_filter.split("_", 1)
+        parts = sort_filter.rsplit("_", 1)
         if len(parts) == 2:  # noqa: PLR2004
             return parts[0], parts[1]
         return parts[0], ""
@@ -658,31 +646,29 @@ def _sort_type(media):
     return getattr(item, "media_type", "")
 
 
-_AGGREGATED_MANUAL_SORT_KEYS = {
-    "added": lambda media: media.created_at,
-    "itemid": itemid_key_compare,
-    "updated": lambda media: media.progressed_at,
-}
-
-
 def apply_manual_sort_for_type(results, sort):
     """Apply manual sorts used when a single media type is requested."""
-    if sort not in _AGGREGATED_MANUAL_SORT_KEYS:
+    if sort not in _AGGREGATED_SORT_KEYS:
         return Response(
             {"detail": "Invalid sorting"},
             status=HTTP.BAD_REQUEST,
         )
-    results.sort(key=_AGGREGATED_MANUAL_SORT_KEYS[sort])
-    return results
+    return sorted(results, key=_AGGREGATED_SORT_KEYS[sort])
 
 
 _AGGREGATED_SORT_KEYS = {
     "added": lambda media: _sort_nullable(getattr(media, "created_at", None)),
     "ended": lambda media: _sort_nullable(getattr(media, "end_date", None)),
+    "episode": lambda media: _sort_nullable(
+        getattr(_item_from_result(media), "episode_number", None),
+    ),
     "id": lambda media: int(media.id),
     "itemid": itemid_key_compare,
     "mediaid": _sort_mediaid,
     "progress": lambda media: int(getattr(media, "progress", 0) or 0),
+    "season": lambda media: _sort_nullable(
+        getattr(_item_from_result(media), "season_number", None),
+    ),
     "source": _sort_source,
     "started": lambda media: _sort_nullable(getattr(media, "start_date", None)),
     "title": _sort_title,
