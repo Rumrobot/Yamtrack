@@ -365,6 +365,52 @@ class MediaEpisodeTests(YamtrackApiTestCase):
         self.assertIn("details", payload)
         self.assertIsNone(payload["consumptions"][0]["end_date"])
 
+    def test_episode_detail_patch_updates_score(self):
+        """Episode detail PATCH should set and return the user's episode score."""
+        tv_item = self.items_by_type[MediaTypes.TV.value][0]
+        season_item = self.items_by_type[MediaTypes.SEASON.value][0]
+        episode_item = self.items_by_type[MediaTypes.EPISODE.value][0]
+
+        def _metadata_side_effect(media_type, *_args, **_kwargs):
+            if media_type == "tv_with_seasons":
+                return {
+                    f"season/{season_item.season_number}": {"episodes": [{}, {}]},
+                    "related": {
+                        "seasons": [{"season_number": season_item.season_number}]
+                    },
+                }
+            if media_type == "season":
+                return self.build_episode_metadata(
+                    tv_item=tv_item,
+                    season_number=season_item.season_number,
+                    episode_number=episode_item.episode_number,
+                    title=episode_item.title,
+                    image=episode_item.image,
+                )
+            return {}
+
+        with patch(
+            "app.models.providers.services.get_media_metadata",
+            side_effect=_metadata_side_effect,
+        ):
+            response = self.call_api(
+                "patch",
+                "api_media_episode_detail",
+                args=(
+                    MediaTypes.TV.value,
+                    tv_item.source,
+                    tv_item.media_id,
+                    season_item.season_number,
+                    episode_item.episode_number,
+                ),
+                payload={"score": 8.5},
+                headers=self.auth_headers,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["consumptions"][0]["score"], 8.5)
+
     @patch("api.views.services.get_media_metadata")
     def test_episode_detail_delete_tracked_episode_returns_204(self, mock_metadata):
         """Episode detail DELETE should remove tracked episode."""

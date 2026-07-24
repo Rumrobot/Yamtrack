@@ -370,7 +370,7 @@ class EpisodeSerializer(serializers.ModelSerializer):
                 else None,
                 "tracked": True,
                 "created_at": instance.created_at,
-                "score": None,
+                "score": float(instance.score) if instance.score is not None else None,
                 "status": 3,
                 "progress": 1,
                 "progressed_at": instance.end_date,
@@ -429,7 +429,9 @@ class EpisodeSerializer(serializers.ModelSerializer):
             "created_at": episode.created_at
             if hasattr(episode, "created_at")
             else None,
-            "score": None,
+            "score": float(episode.score)
+            if getattr(episode, "score", None) is not None
+            else None,
             "status": 3 if tracked else None,
             "progress": 1 if tracked else None,
             "progressed_at": episode.end_date if hasattr(episode, "end_date") else None,
@@ -516,7 +518,7 @@ class HistorySerializer(serializers.Serializer):
                 "created": instance.created_at
                 if hasattr(instance, "created_at")
                 else None,
-                "score": None,
+                "score": float(instance.score) if instance.score is not None else None,
                 "progress": 1 if bool(instance) else 0,
                 "progressed_at": instance.created_at
                 if hasattr(instance, "created_at")

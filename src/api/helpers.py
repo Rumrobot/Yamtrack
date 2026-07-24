@@ -33,7 +33,7 @@ MEDIA_MODIFIABLE_FIELDS = {
     MediaTypes.MOVIE.value: {"score", "status", "start_date", "end_date", "notes"},
     MediaTypes.TV.value: {"score", "status", "notes"},
     MediaTypes.SEASON.value: {"score", "status", "notes"},
-    MediaTypes.EPISODE.value: {"end_date"},
+    MediaTypes.EPISODE.value: {"score", "end_date"},
     MediaTypes.ANIME.value: {
         "score",
         "status",
@@ -666,6 +666,7 @@ _AGGREGATED_SORT_KEYS = {
     "itemid": itemid_key_compare,
     "mediaid": _sort_mediaid,
     "progress": lambda media: int(getattr(media, "progress", 0) or 0),
+    "score": lambda media: _sort_nullable(getattr(media, "score", None)),
     "season": lambda media: _sort_nullable(
         getattr(_item_from_result(media), "season_number", None),
     ),
