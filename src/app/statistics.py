@@ -370,6 +370,76 @@ def get_status_color(status):
         return "rgba(201, 203, 207)"
 
 
+def get_timeline(user_media):
+    """Build a timeline of media consumption organized by month-year."""
+    timeline = defaultdict(list)
+
+    # Process each media type
+    for media_type, queryset in user_media.items():
+        if media_type == MediaTypes.TV.value:
+            continue
+        for media in queryset:
+            local_start_date = timezone.localdate(media.start_date)
+            local_end_date = timezone.localdate(media.end_date)
+
+            if media.start_date and media.end_date:
+                # add media to all months between start and end
+                current_date = local_start_date
+                while current_date <= local_end_date:
+                    year = current_date.year
+                    month = current_date.month
+                    month_name = calendar.month_name[month]
+                    month_year = f"{month_name} {year}"
+
+                    timeline[month_year].append(media)
+
+                    # Move to next month
+                    current_date += relativedelta(months=1)
+                    current_date = current_date.replace(day=1)
+            elif media.start_date:
+                # If only start date, add to the start month
+                year = local_start_date.year
+                month = local_start_date.month
+                month_name = calendar.month_name[month]
+                month_year = f"{month_name} {year}"
+
+                timeline[month_year].append(media)
+            elif media.end_date:
+                # If only end date, add to the end month
+                year = local_end_date.year
+                month = local_end_date.month
+                month_name = calendar.month_name[month]
+                month_year = f"{month_name} {year}"
+
+                timeline[month_year].append(media)
+
+    # Convert to sorted dictionary with media sorted by start date
+    # Create a list sorted by year and month in reverse order
+    sorted_items = []
+    for month_year, media_list in timeline.items():
+        month_name, year_str = month_year.split()
+        year = int(year_str)
+        month = list(calendar.month_name).index(month_name)
+        sorted_items.append((month_year, media_list, year, month))
+
+    # Sort by year and month in reverse chronological order
+    sorted_items.sort(key=lambda x: (x[2], x[3]), reverse=True)
+
+    # Create the final result dictionary
+    result = {}
+    for month_year, media_list, _, _ in sorted_items:
+        # Sort the media list using our custom sort key
+        result[month_year] = sorted(media_list, key=time_line_sort_key, reverse=True)
+    return result
+
+
+def time_line_sort_key(media):
+    """Sort media items in the timeline."""
+    if media.end_date is not None:
+        return timezone.localdate(media.end_date)
+    return timezone.localdate(media.start_date)
+
+
 def _consumed_value_and_unit(media_type, queryset, item_count):
     """Return the consumed amount and its sub-unit noun for one media type.
 
