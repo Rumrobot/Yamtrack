@@ -4087,7 +4087,7 @@ components:
       type: string
       description: media_type/media_source/media_id(/season/episode)
       nullable: true
-    List:
+    ListEntry:
       type: object
       properties:
         id:
@@ -4399,7 +4399,7 @@ components:
         results:
           type: array
           items:
-            $ref: "#/components/schemas/Lists"
+            $ref: "#/components/schemas/ListEntry"
     PaginatedListsNoItems:
       type: object
       properties:
