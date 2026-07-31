@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('app', '0062_truncate_media_date_seconds'),
+        ('app', '0063_season_image_fallback_to_tv'),
     ]
 
     operations = [
