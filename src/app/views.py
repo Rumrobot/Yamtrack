@@ -992,20 +992,25 @@ def statistics(request):
     media_type_distribution = stats.get_media_type_distribution(
         media_count,
     )
-    score_distribution, top_rated = stats.get_score_distribution(user_media)
+    score_distribution, top_rated = stats.get_score_distribution(
+        user_media,
+        request.user,
+    )
     status_distribution = stats.get_status_distribution(user_media)
     status_pie_chart_data = stats.get_status_pie_chart_data(
         status_distribution,
     )
     consumption_stats = stats.get_consumption_stats(user_media, media_count)
 
-    total = media_count["total"]
     in_progress_count = stats.get_status_total(
         status_distribution,
         Status.IN_PROGRESS.value,
     )
+    total_rateable = score_distribution["total_rateable"]
     rated_percent = (
-        round(score_distribution["total_scored"] / total * 100) if total else None
+        round(score_distribution["total_scored"] / total_rateable * 100)
+        if total_rateable
+        else None
     )
 
     context = {

@@ -8,7 +8,7 @@ from django.utils.dateparse import parse_date
 from django.utils.html import format_html
 from unidecode import unidecode
 
-from app import config, helpers
+from app import config, helpers, ratings
 from app.models import MediaTypes, Sources, Status
 from users.models import WATCH_PROVIDER_REGION_UNSET
 
@@ -474,6 +474,18 @@ def show_media_score(rating, user):
         True if we should show the media score
     """
     return rating is not None and (not user.hide_zero_rating or rating > 0)
+
+
+@register.simple_tag
+def effective_media_score(media, user):
+    """Return manual or computed rating for display."""
+    return ratings.effective_score(media, user)
+
+
+@register.filter
+def format_media_score(score):
+    """Format a manual or computed rating for display."""
+    return ratings.format_score(score)
 
 
 @register.simple_tag

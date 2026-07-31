@@ -13,7 +13,7 @@ from django.db.models import (
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from app import config
+from app import config, ratings
 from app.models import TV, BasicMedia, Episode, MediaManager, MediaTypes, Season, Status
 from app.templatetags import app_tags
 from users.models import WeekStartDayChoices
@@ -266,27 +266,29 @@ def _top_rated_group_key(media_type, media):
     return (media_type, media.item_id)
 
 
-def get_score_distribution(user_media):
+def get_score_distribution(user_media, user=None):
     """Get score distribution for each media type within date range."""
     distribution = {}
     total_scored = 0
-    total_score_sum = 0
+    total_score_sum = 0.0
 
     top_rated_by_key = {}
     score_range = range(11)
+    total_rateable = sum(media_list.count() for media_list in user_media.values())
 
     for media_type, media_list in user_media.items():
         score_counts = dict.fromkeys(score_range, 0)
-        # Only item + score are read here, so drop any prefetch (e.g. the TV
-        # seasons/episodes graph) that get_user_media attached — surviving
-        # top-rated rows are re-fetched with the right prefetch afterwards.
-        scored_media = (
-            media_list.exclude(score__isnull=True)
-            .select_related("item")
-            .prefetch_related(None)
-        )
+        scored_media = media_list.select_related("item")
+        if user is None or not user.average_ratings:
+            scored_media = scored_media.exclude(score__isnull=True).prefetch_related(
+                None,
+            )
 
         for media in scored_media:
+            score = ratings.effective_score(media, user) if user else media.score
+            if score is None:
+                continue
+            media.effective_score = score
             key = _top_rated_group_key(media_type, media)
             existing = top_rated_by_key.get(key)
             # Keep the score from the most recently created entry so repeated
@@ -294,10 +296,10 @@ def get_score_distribution(user_media):
             if existing is None or media.created_at > existing.created_at:
                 top_rated_by_key[key] = media
 
-            binned_score = int(media.score)
+            binned_score = int(score)
             score_counts[binned_score] += 1
             total_scored += 1
-            total_score_sum += media.score
+            total_score_sum += float(score)
 
         distribution[media_type] = score_counts
 
@@ -308,7 +310,10 @@ def get_score_distribution(user_media):
     top_rated_count = 14
     top_rated_media = sorted(
         top_rated_by_key.values(),
-        key=lambda media: (-float(media.score), -media.created_at.timestamp()),
+        key=lambda media: (
+            -float(getattr(media, "effective_score", media.score)),
+            -media.created_at.timestamp(),
+        ),
     )[:top_rated_count]
 
     top_rated_media = _annotate_top_rated_media(top_rated_media)
@@ -325,6 +330,7 @@ def get_score_distribution(user_media):
         ],
         "average_score": average_score,
         "total_scored": total_scored,
+        "total_rateable": total_rateable,
     }, top_rated_media
 
 
@@ -357,7 +363,10 @@ def _annotate_top_rated_media(top_rated_media):
         # Replace original instances with enhanced ones
         for i, media in enumerate(top_rated_media):
             if media.item.media_type == media_type:
-                top_rated_media[i] = prefetched_media_map[media.id]
+                prefetched_media = prefetched_media_map[media.id]
+                if hasattr(media, "effective_score"):
+                    prefetched_media.effective_score = media.effective_score
+                top_rated_media[i] = prefetched_media
 
     return top_rated_media
 
