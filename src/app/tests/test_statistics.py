@@ -1,10 +1,11 @@
 import datetime
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from app import statistics
+from app import ratings, statistics
 from app.models import (
     TV,
     Anime,
@@ -756,6 +757,61 @@ class StatisticsTests(TestCase):
         self.assertEqual(len(top_rated), 2)
         scores = sorted(media.score for media in top_rated)
         self.assertEqual(scores, [6.0, self.season.score])
+
+    def test_get_score_distribution_includes_derived_scores_not_raw_episodes(self):
+        """Score distribution uses derived TV/season scores, not raw episodes."""
+        self.user.average_ratings = True
+        self.user.save()
+        TV.objects.filter(user=self.user).update(score=None)
+        Season.objects.filter(pk=self.season.pk).update(score=None)
+        Episode.objects.filter(pk=self.episode1.pk).update(score=7.0)
+        Episode.objects.filter(pk=self.episode2.pk).update(score=9.0)
+
+        user_media = {
+            MediaTypes.TV.value: TV.objects.filter(user=self.user).prefetch_related(
+                "seasons__episodes",
+            ),
+            MediaTypes.SEASON.value: Season.objects.filter(
+                user=self.user,
+            ).prefetch_related("episodes"),
+            MediaTypes.MOVIE.value: Movie.objects.filter(user=self.user),
+        }
+
+        score_distribution, top_rated = statistics.get_score_distribution(
+            user_media,
+            self.user,
+        )
+
+        self.assertEqual(score_distribution["total_scored"], 3)
+        self.assertEqual(score_distribution["total_rateable"], 3)
+        self.assertEqual(score_distribution["average_score"], 7.83)
+        self.assertEqual(score_distribution["datasets"][0]["data"][8], 1)
+        self.assertEqual(score_distribution["datasets"][1]["data"][8], 1)
+        labels = [dataset["label"] for dataset in score_distribution["datasets"]]
+        self.assertNotIn("Episode", labels)
+        self.assertEqual(len(top_rated), 3)
+
+    def test_top_rated_preserves_filtered_derived_score(self):
+        """Top rated cards use the date-filtered average from statistics."""
+        self.user.average_ratings = True
+        self.user.save()
+        Season.objects.filter(pk=self.season.pk).update(score=None)
+        Episode.objects.filter(pk=self.episode1.pk).update(score=10.0)
+        Episode.objects.filter(pk=self.episode2.pk).update(score=2.0)
+
+        start_date = datetime.datetime(2025, 1, 1, 0, 0, tzinfo=datetime.UTC)
+        end_date = datetime.datetime(2025, 1, 1, 23, 59, tzinfo=datetime.UTC)
+        user_media, _ = statistics.get_user_media(self.user, start_date, end_date)
+
+        _, top_rated = statistics.get_score_distribution(
+            {MediaTypes.SEASON.value: user_media[MediaTypes.SEASON.value]},
+            self.user,
+        )
+
+        self.assertEqual(
+            ratings.effective_score(top_rated[0], self.user),
+            Decimal("10.0"),
+        )
 
     def test_get_status_color(self):
         """Test the get_status_color function."""

@@ -29,7 +29,7 @@ from simple_history.utils import bulk_create_with_history, bulk_update_with_hist
 import app
 import events
 import users
-from app import providers
+from app import providers, ratings
 from app.mixins import CalendarTriggerMixin
 
 logger = logging.getLogger(__name__)
@@ -253,7 +253,7 @@ class MediaManager(models.Manager):
         queryset = self._apply_prefetch_related(queryset, media_type)
 
         if sort_filter:
-            return self._sort_media_list(queryset, sort_filter, media_type)
+            return self._sort_media_list(queryset, sort_filter, media_type, user)
         return queryset
 
     def _apply_prefetch_related(self, queryset, media_type):
@@ -289,14 +289,33 @@ class MediaManager(models.Manager):
 
         return base_queryset
 
-    def _sort_media_list(self, queryset, sort_filter, media_type=None):
+    def _sort_media_list(self, queryset, sort_filter, media_type=None, user=None):
         """Sort media list using SQL sorting with annotations for calculated fields."""
+        if (
+            sort_filter == "score"
+            and user is not None
+            and user.average_ratings
+            and media_type in (MediaTypes.TV.value, MediaTypes.SEASON.value)
+        ):
+            return self._sort_by_effective_score(queryset, user)
+
         if media_type == MediaTypes.TV.value:
             return self._sort_tv_media_list(queryset, sort_filter)
         if media_type == MediaTypes.SEASON.value:
             return self._sort_season_media_list(queryset, sort_filter)
 
         return self._sort_generic_media_list(queryset, sort_filter)
+
+    def _sort_by_effective_score(self, queryset, user):
+        """Sort prefetched TV/seasons by manual score or computed average."""
+        return sorted(
+            queryset,
+            key=lambda media: (
+                ratings.effective_score(media, user) is None,
+                -(ratings.effective_score(media, user) or 0),
+                media.item.title.lower(),
+            ),
+        )
 
     def _sort_tv_media_list(self, queryset, sort_filter):
         """Sort TV media list based on the sort criteria."""

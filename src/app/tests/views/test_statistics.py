@@ -257,7 +257,7 @@ class StatisticsViewTests(TestCase):
         """The In Progress count and % Rated reflect the user's library."""
         seed = [
             (Status.IN_PROGRESS.value, 8),
-            (Status.IN_PROGRESS.value, None),
+            (Status.IN_PROGRESS.value, 5),
             (Status.COMPLETED.value, None),
             (Status.PLANNING.value, None),
         ]
@@ -287,8 +287,7 @@ class StatisticsViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["in_progress_count"], 2)
-        # 1 of 4 items is scored -> 25%.
-        self.assertEqual(response.context["rated_percent"], 25)
+        self.assertEqual(response.context["rated_percent"], 50)
         self.assertContains(response, "In Progress")
         self.assertContains(response, "% Rated")
 

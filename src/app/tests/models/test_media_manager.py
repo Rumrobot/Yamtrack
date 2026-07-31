@@ -382,6 +382,40 @@ class MediaManagerTests(TestCase):
             for season in season_list:
                 list(season.episodes.all())
 
+    def test_score_sort_uses_derived_season_rating_when_enabled(self):
+        """Season score sort uses episode averages for unrated seasons."""
+        self.user.average_ratings = True
+        self.user.save()
+        Season.objects.filter(pk=self.season1.pk).update(score=None)
+        Episode.objects.filter(related_season=self.season1).update(score=9)
+
+        season2_item = Item.objects.create(
+            media_id="1668",
+            source=Sources.TMDB.value,
+            media_type=MediaTypes.SEASON.value,
+            title="Friends Season 2",
+            image="http://example.com/image.jpg",
+            season_number=2,
+        )
+        Season.objects.create(
+            item=season2_item,
+            related_tv=self.tv,
+            user=self.user,
+            status=Status.PLANNING.value,
+            score=8,
+        )
+
+        seasons = list(
+            MediaManager().get_media_list(
+                user=self.user,
+                media_type=MediaTypes.SEASON.value,
+                status_filter=MediaStatusChoices.ALL,
+                sort_filter="score",
+            ),
+        )
+
+        self.assertEqual(seasons[0].id, self.season1.id)
+
     def test_sort_media_list(self):
         """Test the _sort_media_list method."""
         manager = MediaManager()
