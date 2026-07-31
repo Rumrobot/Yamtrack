@@ -506,6 +506,21 @@ class HealthResponseSerializer(serializers.Serializer):
         }
 
 
+class EpisodeWatchSerializer(serializers.Serializer):
+    """Validate an optional watched-at timestamp for a new episode consumption."""
+
+    score = serializers.FloatField(
+        required=False,
+        min_value=0,
+        max_value=10,
+        help_text="Optional episode rating from 0 to 10.",
+    )
+    end_date = serializers.DateTimeField(
+        required=False,
+        help_text="When the episode was watched. Defaults to the current time.",
+    )
+
+
 class HistorySerializer(serializers.Serializer):
     """Serializer for watch history entries."""
 
