@@ -361,6 +361,11 @@ class User(AbstractUser):
         help_text="Hide zero ratings from media cards",
     )
 
+    average_ratings = models.BooleanField(
+        default=False,
+        help_text="Use rating averages for unrated TV shows and seasons",
+    )
+
     # Watch provider region
     watch_provider_region = models.CharField(
         max_length=5,

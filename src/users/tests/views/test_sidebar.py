@@ -124,6 +124,23 @@ class SidebarViewTests(TestCase):
         self.assertEqual(len(messages), 1)
         self.assertIn("Settings updated", str(messages[0]))
 
+    def test_average_ratings_post_enable(self):
+        """Test enabling derived TV/season ratings via preferences."""
+        self.user.average_ratings = False
+        self.user.save()
+
+        response = self.client.post(
+            reverse("preferences"),
+            {
+                "average_ratings": "on",
+                "media_types_checkboxes": [MediaTypes.TV.value],
+            },
+        )
+        self.assertRedirects(response, reverse("preferences"))
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.average_ratings)
+
     def test_clickable_media_cards_and_obfuscate_unseen_episodes(self):
         """Test updating both clickable_media_cards and obfuscate_unseen_episodes."""
         self.user.clickable_media_cards = False
